@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+
+<html lang="it">
+<head>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/><meta charset="utf-8"/>
+<title>Gioco Lettere Cadenti</title>
+<style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      overflow: hidden;
+      background: #111;
+      color: white;
+      transition: background-color 1s ease;
+    }
+
+    #game {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: none;
+    }
+
+    .letter {
+      position: absolute;
+      font-size: 6vw;
+      color: #0f0;
+      user-select: none;
+      transition: all 0.3s ease-out;
+    }
+
+    #score, #timer {
+      position: absolute;
+      top: 10px;
+      font-size: 4vw;
+    }
+
+    #score {
+      left: 10px;
+    }
+
+    #timer {
+      right: 10px;
+    }
+
+    #startScreen, #gameOverScreen {
+      position: absolute;
+      width: 100vw;
+      height: 100vh;
+      background-color: #111;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      text-align: center;
+    }
+
+    #startButton, #retryButton {
+      padding: 1.5rem 3rem;
+      font-size: 2rem;
+      background: #0f0;
+      color: #111;
+      border: none;
+      cursor: pointer;
+      border-radius: 10px;
+      transition: background 0.3s;
+      margin-top: 20px;
+    }
+
+    #startButton:hover, #retryButton:hover {
+      background: #0c0;
+    }
+
+    .summary {
+      margin-top: 20px;
+      font-size: 1.2rem;
+      line-height: 1.5;
+    }
+
+    .laser {
+      position: absolute;
+      width: 6px;
+      height: 100%;
+      background: linear-gradient(to top, #ff6699, #ff0000);
+      animation: laserAnimation 0.5s forwards;
+      z-index: 10;
+      border-radius: 2px;
+    }
+
+    @keyframes laserAnimation {
+      0% {
+        top: 100%;
+        opacity: 1;
+      }
+      100% {
+        top: 0;
+        opacity: 0;
+      }
+    }
+
+    @keyframes explosion {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(5);
+        opacity: 0;
+      }
+    }
+
+    .explosion {
+      animation: explosion 0.5s forwards;
+    }
+
+  </style>
+</head>
+<body>
+<!-- Schermata Iniziale -->
+<div id="startScreen">
+<h1>Lettere Cadenti</h1>
+<button id="startButton">START</button>
+</div>
+<!-- Schermata Game Over -->
+<div id="gameOverScreen" style="display: none;">
+<h1>HAI PERSO</h1>
+<div class="summary" id="summaryText"></div>
+<button id="retryButton">RIPROVA</button>
+</div>
+<!-- Gioco -->
+<div id="game">
+<div id="score">Punteggio: 0</div>
+<div id="timer">Tempo: 0s</div>
+</div><input autofocus="" id="mobileInput" style="opacity:0; position:absolute; z-index:999;" type="text"/>
+<script>
+    const game = document.getElementById('game');
+    const scoreDisplay = document.getElementById('score');
+    const timerDisplay = document.getElementById('timer');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const startButton = document.getElementById('startButton');
+    const retryButton = document.getElementById('retryButton');
+    const summaryText = document.getElementById('summaryText');
+
+    let score = 0;
+    let speed = 1;
+    let interval = 1500;
+    let gameStarted = false;
+    let letterInterval;
+    let timer = 0;
+    let timerInterval;
+    let correctCount = 0;
+    let wrongCount = 0;
+
+    function getRandomLetter() {
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      return letters[Math.floor(Math.random() * letters.length)];
+    }
+
+    function getRandomColor() {
+      let r, g, b;
+      do {
+        r = Math.floor(Math.random() * 150) + 50;
+        g = Math.floor(Math.random() * 150) + 50;
+        b = Math.floor(Math.random() * 150) + 50;
+      } while (r === g && g === b);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function changeBackgroundColor() {
+      const r = Math.floor(Math.random() * 150) + 50;
+      const g = Math.floor(Math.random() * 150) + 50;
+      const b = Math.floor(Math.random() * 150) + 50;
+      document.body.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function createLetter() {
+      const letter = document.createElement('div');
+      letter.classList.add('letter');
+      const char = getRandomLetter();
+      letter.textContent = char;
+      letter.dataset.char = char;
+      letter.style.left = `${Math.random() * 90}vw`;
+      letter.style.top = `0px`;
+      letter.style.color = getRandomColor();
+      game.appendChild(letter);
+      fall(letter);
+    }
+
+    function fall(letter) {
+      let top = 0;
+      const falling = setInterval(() => {
+        top += speed;
+        letter.style.top = `${top}px`;
+
+        if (letter.offsetTop > window.innerHeight) {
+          clearInterval(falling);
+          letter.remove();
+          endGame();
+        }
+      }, 20);
+
+      letter.dataset.fallingId = falling;
+    }
+
+    function createLaserEffect(letter) {
+      const laser = document.createElement('div');
+      laser.classList.add('laser');
+      laser.style.left = `${letter.offsetLeft + letter.offsetWidth / 2 - 3}px`;
+      laser.style.bottom = '0';
+      game.appendChild(laser);
+
+      setTimeout(() => {
+        laser.remove();
+      }, 500);
+
+      setTimeout(() => {
+        if (laser.getBoundingClientRect().top <= letter.getBoundingClientRect().top) {
+          letter.classList.add('explosion');
+          setTimeout(() => {
+            letter.remove();
+            score++;
+            correctCount++;
+            updateScore();
+            if (score % 5 === 0) changeBackgroundColor();
+            if (score % 10 === 0) increaseSpeed(); // Aumenta la velocità ogni 10 punti
+          }, 300);
+        }
+      }, 300);
+    }
+
+    function updateScore() {
+      scoreDisplay.textContent = `Punteggio: ${score}`;
+    }
+
+    function updateTimer() {
+      timer++;
+      timerDisplay.textContent = `Tempo: ${timer}s`;
+    }
+
+    function increaseSpeed() {
+      if (speed < 5) { // Limita la velocità massima a 5
+        speed += 0.5; // Aumenta la velocità
+      }
+    }
+
+    function endGame() {
+      gameStarted = false;
+      clearInterval(letterInterval);
+      clearInterval(timerInterval);
+
+      document.querySelectorAll('.letter').forEach(letter => {
+        clearInterval(letter.dataset.fallingId);
+        letter.remove();
+      });
+
+      summaryText.innerHTML = ` 
+        ⏱️ Tempo totale: ${timer}s<br>
+        ✅ Lettere corrette: ${correctCount}<br>
+        ❌ Lettere sbagliate: ${wrongCount}
+      `;
+
+      gameOverScreen.style.display = 'flex';
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (!gameStarted) return;
+
+      const key = e.key.toUpperCase();
+      let matched = false;
+      const letters = document.querySelectorAll('.letter');
+
+      letters.forEach(letter => {
+        if (letter.dataset.char === key) {
+          createLaserEffect(letter);
+          matched = true;
+        }
+      });
+
+      if (!matched && /^[A-Z]$/.test(key)) {
+        score = Math.max(0, score - 1);
+        wrongCount++;
+      }
+
+      updateScore();
+    });
+
+    function startGame() {
+      score = 0;
+      speed = 1;
+      timer = 0;
+      correctCount = 0;
+      wrongCount = 0;
+
+      updateScore();
+      timerDisplay.textContent = `Tempo: 0s`;
+      gameStarted = true;
+
+      letterInterval = setInterval(createLetter, interval);
+      timerInterval = setInterval(updateTimer, 1000);
+
+      game.style.display = 'block';
+    }
+
+    startButton.addEventListener('click', () => {
+      startScreen.style.display = 'none';
+      startGame();
+    });
+
+    retryButton.addEventListener('click', () => {
+      gameOverScreen.style.display = 'none';
+      startGame();
+    });
+  
+const mobileInput = document.getElementById('mobileInput');
+
+// Mantieni il focus sull'input invisibile per dispositivi mobili
+setInterval(() => {
+  if (gameStarted) mobileInput.focus();
+}, 1000);
+
+// Rileva input da tastiera touch e simula evento keydown
+mobileInput.addEventListener('input', (e) => {
+  const key = e.target.value.toUpperCase();
+  e.target.value = '';
+  document.dispatchEvent(new KeyboardEvent('keydown', { key }));
+});
+</script>
+</body>
+</html>
